@@ -1,0 +1,13 @@
+var num1 = 1
+var num2 = 1
+var temp = 0
+var fib = readLine()
+for i in 1...fib {
+    temp = num1 + num2
+    print(temp)
+    num1 = num2
+    print(num1)
+    num2 = temp
+    print(num2)
+}
+print(num2)

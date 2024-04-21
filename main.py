@@ -43,7 +43,8 @@ tokens = [
    'NOT_EQ',
    'LESS_EQ',
    'GREATER_EQ',
-   'ELLIPSIS'
+   'ELLIPSIS',
+   'POWER'
    ]
 tokens += list(reserved.values())
 
@@ -68,6 +69,10 @@ def t_DQ_STRING(t):
 
 def t_ELLIPSIS(t):
    "\.\.\."
+   return t
+
+def t_POWER(t):
+   "\*\*"
    return t
 
 def t_NUMBER(t):
@@ -162,14 +167,15 @@ def p_LET_ASSIGN(p):
    "assign : LET NAME '=' expression"
    global branch_index
    branch_index+=1
-   p[0] = ASTNODE("assign", children=[ASTNODE("name", value=p[2]), p[4]])
+   symbol_table[0][p[2]] = {"var_name": f"{p[2]}_{branch_index}", "type":p[4].data["type"]}
+   p[0] = ASTNODE("assign", children=[p[4]], data={"var_name":f"{p[2]}_{branch_index}", "type":p[4].data["type"]})
 
 def p_VAR_ASSIGN(p):
    "assign : VAR NAME '=' expression"
    global branch_index
    branch_index+=1
-   symbol_table[0][p[2]] = {"var_name": f"{p[2]}_{branch_index}", "type": "integer"}
-   p[0] = ASTNODE("assign", children=[p[4]], data={"var_name":f"{p[2]}_{branch_index}"})
+   symbol_table[0][p[2]] = {"var_name": f"{p[2]}_{branch_index}", "type":p[4].data["type"]}
+   p[0] = ASTNODE("assign", children=[p[4]], data={"var_name":f"{p[2]}_{branch_index}", "type":p[4].data["type"]})
 
 def p_REASSIGN(p):
    "assign : NAME '=' expression"
@@ -184,7 +190,7 @@ def p_FOR_ASSIGN(p):
    "for_assign : NAME"
    global branch_index
    branch_index+=1
-   symbol_table[0][p[1]] = {"var_name": f"{p[1]}_{branch_index}"}
+   symbol_table[0][p[1]] = {"var_name": f"{p[1]}_{branch_index}", "type": "int"}
    p[0] = ASTNODE("for_assign", data={"var_name":symbol_table[0][p[1]]["var_name"]})
 
 def p_STATEMENT_BLOCK2(p):
@@ -215,7 +221,7 @@ def p_EXPRESSION_INPUT(p):
    "expression : READLINE '(' ')'"  # 2024-02-14, DMW, changed the print grammar to the following
    global branch_index
    branch_index+=1
-   p[0] = ASTNODE("input")
+   p[0] = ASTNODE("input", data={"type":"int"})
 
 def p_EXPRESSION_MIN(p):
    "expression : MIN '(' expression ',' expression ')'"  # 2024-02-14, DMW, changed the print grammar to the following
@@ -233,40 +239,59 @@ def p_EXPRESSION_ABS(p):
    "expression : ABS '(' expression ')'"  # 2024-02-14, DMW, changed the print grammar to the following
    p[0] = ASTNODE("abs", children=[p[3]], data={"branch_index": branch_index})
 
+def p_EXPRESSION_POWER(p):
+   "expression : expression POWER expression"
+   global branch_index
+   branch_index+=1
+   if p[1].data["type"] != "int" or p[3].data["type"] != "int":
+      raise Exception("Invalid types for binary operation.") 
+   p[0] = ASTNODE("exponent", data={"type":"int", "branch_index": branch_index}, children=[p[1], p[3]])
+
 def p_EXPRESSION_UMINUS(p):
    """expression : '-' expression %prec UMINUS"""
-   p[0] = ASTNODE("uminus", children=[p[2]])
+   if p[2].data["type"] != "int":
+      raise Exception("Invalid type for unary minus operation.")
+   p[0] = ASTNODE("uminus", children=[p[2]], data={"type": "int"})
 
 def p_EXPRESSION_BINOP(p):
-    '''expression : expression '+' expression
+   '''expression : expression '+' expression
                   | expression '-' expression
                   | expression '*' expression
                   | expression '/' expression
                   | expression '%' expression'''
-    p[0] = ASTNODE("binop", value=p[2], children=[p[1], p[3]])
+   if p[1].data["type"] != "int" or p[3].data["type"] != "int":
+      raise Exception("Invalid types for binary operations.")
+   p[0] = ASTNODE("binop", value=p[2], children=[p[1], p[3]], data={"type": "int"})
 
 def p_EXPRESSION_RANGE(p):
    "expression : expression ELLIPSIS expression"
+   if p[1].data["type"] != "int" or p[3].data["type"] != "int":
+      raise Exception("Invalid types for range operation.")
    p[0] = ASTNODE("range", value=p[2], children=[p[1], p[3]])
 
 def p_EXPRESSION_NUM(p):
    "expression : NUMBER"
-   p[0] = ASTNODE("expression", children=[ASTNODE("number", value=p[1])])
+   try:
+      int(p[1])
+   except Exception as e:
+      raise Exception
+      
+   p[0] = ASTNODE("expression", children=[ASTNODE("number", value=p[1])], data={"type": "int"})
 
 def p_EXPRESSION_NAME(p):
    "expression : NAME"
-   p[0] = ASTNODE("expression", children=[ASTNODE("name", value=p[1], data={"var_name":symbol_table[0][p[1]]["var_name"]})])
+   p[0] = ASTNODE("name", data={"var_name":symbol_table[0][p[1]]["var_name"], "type": symbol_table[0][p[1]]["type"]})
 
 def remove_quotes(s):
     return s[1:-1]
 
 def p_EXPRESSION_DQ_STRING(p):
    "expression : DQ_STRING"
-   p[0] = ASTNODE("string", value=remove_quotes(p[1]))
+   p[0] = ASTNODE("string", value=remove_quotes(p[1]), data={"type": "string"})
 
 def p_EXPRESSION_SQ_STRING(p):
    "expression : SQ_STRING"
-   p[0] = ASTNODE("string", value=remove_quotes(p[1]))
+   p[0] = ASTNODE("string", value=remove_quotes(p[1]), data={"type": "string"})
 
 def p_EXPRESSION_GROUP(p):
    "expression : '(' expression ')'"
@@ -282,6 +307,8 @@ def p_EXPRESSION_COMPARE(p):
                    """
    global branch_index
    branch_index+=1
+   if p[1].data["type"] != p[3].data["type"]:
+      raise Exception("Incompatible types for comparison operation.")
    p[0] = ASTNODE("comparison", value=p[2], children=[p[1], p[3]], data={"branch_index": branch_index})
 
 def p_IF_CONDITIONAL(p):

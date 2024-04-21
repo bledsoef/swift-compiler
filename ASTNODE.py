@@ -68,8 +68,6 @@ class ASTNODE(NodeMixin):
                 output_str += ", children={}".format(children)
         if self.line is not None:
             output_str += ", line={}".format(self.line)
-        if self.index is not None:
-            output_str += ", index={}".format(self.index)
         output_str += " }"
         return output_str
 
@@ -96,28 +94,30 @@ class ASTNODE(NodeMixin):
         elif _node.name == "while":
             data = _node.data
             branch_index = data["branch_index"]
-            print(f"loop_{branch_index}:")
+            print(f"loop_{branch_index}: # initialize loop branch")
             ASTNODE.emit_ast(_node.children[0])
-            print("lw $t4, 4($sp)")
-            print(f"beq $t4, 0, continue_{branch_index}")
+            print("lw $t4, 4($sp) # pop an integer off the stack and load it into t4")
+            print("addi $sp, $sp, 4")
+            print(f"beq $t4, 0, continue_{branch_index} # if t4 == 0 move to the continue_{branch_index} branch")
             ASTNODE.emit_ast(_node.children[1])
-            print(f"j loop_{branch_index}")
-            print(f"continue_{branch_index}:")
+            print(f"j loop_{branch_index} # jump to the loop_{branch_index} branch")
+            print(f"continue_{branch_index}: # define a branch for the following code to continue")
         elif _node.name == "for":
             ASTNODE.emit_ast(_node.children[0])
             data = _node.data
             branch_index = data["branch_index"]
             var_name = data["var_name"]
-            print("lw $t2, 4($sp)")
+            print("lw $t7, 4($sp) # pop the integer off the stack and load into t2")
             print("addi $sp, $sp, 4")
-            print("lw $t1, 4($sp)")
+            print("lw $t6, 4($sp) # pop the integer off the stack and store it into t1")
             print("addi $sp, $sp, 4")
-            print(f"sw $t1, {var_name}")
-            print(f"loop_{branch_index}:")
+            print(f"sw $t6, {var_name} # store the value of {var_name} in t1")
+            print(f"loop_{branch_index}: # create a loop branch")
             ASTNODE.emit_ast(_node.children[1])
-            print("   addi $t1, $t1, 1")
-            print(f"   sw $t1, {var_name}")
-            print(f"   bge $t2, $t1, loop_{branch_index}")
+            print("   addi $t6, $t6, 1")
+            print(f"   sw $t6, {var_name} # store the value of {var_name} in t1")
+            print(f"   bge $t7, $t6, loop_{branch_index} # if t2 is greater than or equal to t1 branch to loop_{branch_index}")
+
         elif _node.name == "conditional":
             pass
         elif _node.name == "for_assign":
@@ -127,28 +127,29 @@ class ASTNODE(NodeMixin):
             var_name = data["var_name"]
             for child in _node.children:
                 ASTNODE.emit_ast(child)
-            print("lw $t0, 4($sp)")
+            print("lw $t0, 4($sp) # pop an integer off the stack and store in t0")
             print("addi $sp, $sp, 4")
-            print(f"sw $t0, {var_name}")
+            print(f"sw $t0, {var_name} # store t0 in {var_name}")
         elif _node.name == "range":
             for child in _node.children:
                 ASTNODE.emit_ast(child)
         elif _node.name == "input":
-            print("li $v0, 5")
+            print("li $v0, 5 # load the integer 5 into v0 to accept a user integer input")
             print("syscall")
-            print("move $t0, $v0")
+            print("move $t0, $v0 # move the value of v0 into t0")
             print("addi $sp, $sp, -4")
-            print("sw $t0, 4($sp)")
+            print("sw $t0, 4($sp) # store t0 on the stack")
         elif _node.name == "print":
             for child in _node.children:
                 ASTNODE.emit_ast(child)
-            print("lw $a0, 4($sp)")
+            print("lw $a0, 4($sp) # pop a value off the stack and store it on a0")
             print("addi $sp, $sp, 4")
-            print("li $v0, 1")
+            print("li $v0, 1 # load 1 into v0 for an integer print syscall")
             print("syscall")
             print("li $a0, 10")
-            print("li $v0, 11")
+            print("li $v0, 11 # print a newline")
             print("syscall")
+            print("li $a0, 0")
         elif _node.name == "expression":
             for child in _node.children:
                 ASTNODE.emit_ast(child)
@@ -170,6 +171,7 @@ class ASTNODE(NodeMixin):
                 print("div $t2, $t1, $t0")
             print("addi $sp, $sp, -4")
             print("sw $t2, 4($sp)")
+            print("li $t2, 0")
         elif _node.name == "if":
             data = _node.data
             branch_index = data["branch_index"]
@@ -186,6 +188,7 @@ class ASTNODE(NodeMixin):
             print(f"continue_{branch_index}:")
             print("addi $sp, $sp, -4")
             print("sw $t2, 4($sp)")
+            print("li $t2, 0")
         elif _node.name == "ifelse":
             data = _node.data
             branch_index = data["branch_index"]
@@ -203,6 +206,7 @@ class ASTNODE(NodeMixin):
             print(f"continue_{branch_index}:")
             print("addi $sp, $sp, -4")
             print("sw $t2, 4($sp)")
+            print("li $t2, 0")
         elif _node.name == "abs":
             for child in _node.children:
                 ASTNODE.emit_ast(child)
@@ -252,6 +256,29 @@ class ASTNODE(NodeMixin):
             print(f"continue_{branch_index}:")
             print("addi $sp, $sp, -4")
             print("sw $t2, 4($sp)")
+            print("l2 $t0, 0")
+        elif _node.name == "exponent":
+            for child in _node.children:
+                ASTNODE.emit_ast(child)
+            data = _node.data
+            branch_index = data["branch_index"]  
+            print("li      $t0, 1 # res = 1")
+            print("li      $t1, 1 # iterator = 1")
+            print("lw $t2, 4($sp)")  
+            print("addi $sp, $sp, 4")
+            print("lw $t3, 4($sp)")  
+            print("addi $sp, $sp, 4")
+
+            print(f"loop_{branch_index}:") 
+
+            print("mult     $t0, $t3  # res * iterator")
+            print("mflo $t0")
+            print("add      $t1, $t1, 1")
+            print(f"ble     $t1, $t2, loop_{branch_index}")
+                    
+            print("addi $sp, $sp, -4")
+            print("sw $t0, 4($sp)")
+
         elif _node.name == "comparison":
             data = _node.data
             branch_index = data["branch_index"]            
@@ -282,39 +309,44 @@ class ASTNODE(NodeMixin):
             print(f"continue_{branch_index}:")
             print("addi $sp, $sp, -4")
             print("sw $t2, 4($sp)")
+            print("li $t2, 0")
         elif _node.name == "print_list":
             for child in _node.children:
                 ASTNODE.emit_ast(child)
         elif _node.name == "uminus":
             for child in _node.children:
                 ASTNODE.emit_ast(child)
-            print("lw $t0, 4($sp)")  
+            print("lw $t0, 4($sp) # pop an integer off the stack and store it in 10")  
             print("addi $sp, $sp, 4")
-            print("li $t1, -1")
-            print("mult $t0, $t1")
+            print("li $t1, -1 # load -1 into t1")
+            print("mult $t0, $t1 # multiply t0 and t1")
             print("mflo $t0")
             print("addi $sp, $sp, -4")
-            print("sw $t0, 4($sp)")
+            print("sw $t0, 4($sp) # store t0 onto the stack")
+            print("li $t0, 0")
+            print("li $t1, 0")
         elif _node.name == "name":
             data = _node.data
             var_name = data["var_name"]
-            print(f"lw $t0, {var_name}")
+            print(f"lw $t0, {var_name} # load the value of {var_name} into t0")
             print("addi $sp, $sp, -4")
-            print("sw $t0, 4($sp)")        
+            print("sw $t0, 4($sp) # store the value of t0 on the stack")        
+            print("li $t0, 0")
         elif _node.name == "number":
-            print("li $t0, {}".format(_node.value))
+            print("li $t0, {} # load an integer into t0".format(_node.value))
             print("addi $sp, $sp, -4")
-            print("sw $t0, 4($sp)")
+            print("sw $t0, 4($sp) # store the integer on the stack")
+            print("li $t0, 0")
         elif _node.name == "string":
-            print("li $t0, {}".format(_node.value))
+            print("li $t0, {} # store a string into t0".format(_node.value))
             print("addi $sp, $sp, -4")
-            print("sw $t0, 4($sp)")
+            print("sw $t0, 4($sp) # put the value of sw t0 onto the stack")
     @staticmethod
     def initialize_variables(symbol_table) -> None:
         print(".data")
         for scope, data in symbol_table.items():
             for variable, values in data.items():
-                print(f"{values['var_name']}: .word")
+                print(f"{values['var_name']}: .word 0")
 
 # limited functional testing
 # 2023-04-24, DMW, updated to use test() to prevent pycharm warnings about shadowing "child"
