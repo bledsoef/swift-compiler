@@ -261,7 +261,10 @@ def p_EXPRESSION_BINOP(p):
                   | expression '%' expression'''
    if p[1].data["type"] != "int" or p[3].data["type"] != "int":
       raise Exception("Invalid types for binary operations.")
-   p[0] = ASTNODE("binop", value=p[2], children=[p[1], p[3]], data={"type": "int"})
+   if not p[1].children and not p[3].children:
+      p[0] = ASTNODE("number", value=p[1].value + p[3].value, data={"type": "int"})
+   else:
+      p[0] = ASTNODE("binop", value=p[2], children=[p[1], p[3]], data={"type": "int"})
 
 def p_EXPRESSION_RANGE(p):
    "expression : expression ELLIPSIS expression"
@@ -276,7 +279,7 @@ def p_EXPRESSION_NUM(p):
    except Exception as e:
       raise Exception
       
-   p[0] = ASTNODE("expression", children=[ASTNODE("number", value=p[1])], data={"type": "int"})
+   p[0] = ASTNODE("number", value=p[1], data={"type": "int"})
 
 def p_EXPRESSION_NAME(p):
    "expression : NAME"
