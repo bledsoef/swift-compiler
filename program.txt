@@ -1,1 +1,6 @@
-print(10**2)
+var counter = 10
+print(counter)
+while (counter > 0) {
+    counter = counter - 1
+}
+print(counter)
