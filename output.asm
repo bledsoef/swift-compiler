@@ -1,7 +1,7 @@
 .data
 counter_1: .word 0
 .text
-li $t0, 10 # load an integer into t0
+li $t0, 18 # load an integer into t0
 addi $sp, $sp, -4
 sw $t0, 4($sp) # store the integer on the stack
 li $t0, 0
